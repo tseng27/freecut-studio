@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="完全免費、在瀏覽器本機執行的多軌影音剪輯器">
+<title>自在剪 Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700&family=Unbounded:wght@600&display=swap">
+<style>
+/* Layout: one-screen editing suite. Media bin | program monitor | inspector, over a full-width multi-track timeline. Dark by design, like every grading suite. */
+:root{
+  --bg:#0e1113; --panel:#151a1d; --raised:#1d2327; --line:#283036; --fg:#e3e8eb; --muted:#8a969e;
+  --accent:#f0a83a; --accent-ink:#1d1305; --danger:#e0645a; --black:#000000; --clip-fg:#f3f6f8;
+  --c-video:#2e6a7a; --c-image:#3c6070; --c-text:#6c56a0; --c-audio:#3d7650;
+  --f-ui:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --f-brand:"Unbounded","Noto Sans TC",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:13px/1.45 var(--f-ui);overflow:hidden}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.i{width:16px;height:16px;flex:none}
+.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) minmax(210px,40%);gap:8px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.brand{font-family:var(--f-brand);font-weight:600;font-size:15px;letter-spacing:.02em;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.brand b{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+.tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.spacer{flex:1}
+.btn{background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;color:var(--fg)}
+.btn:hover{border-color:color-mix(in srgb,var(--fg) 28%,var(--line))}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover{background:var(--raised)}
+.btn.icon{padding:6px}
+.btn[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 60%,var(--line))}
+.main{display:grid;grid-template-columns:232px minmax(0,1fr) 292px;gap:8px;min-height:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.panel>h2{font-size:12px;letter-spacing:.06em;color:var(--muted);font-weight:500;margin:0;padding:9px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;min-height:38px}
+.scroll{overflow:auto;min-height:0;flex:1}
+/* bin */
+.bin-sec{padding:8px;display:grid;gap:2px}
+.bin-sec>h3{font-size:11px;color:var(--muted);font-weight:500;margin:4px 4px 4px;letter-spacing:.05em}
+.bin-item{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 6px;border-radius:6px;cursor:grab}
+.bin-item:hover{background:var(--raised)}
+.thumb{width:56px;height:32px;border-radius:3px;background:var(--black) center/cover no-repeat;display:grid;place-items:center;color:var(--muted);font-size:10px;overflow:hidden}
+.bin-item .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bin-item .meta{font-size:11px;color:var(--muted);font-family:var(--f-mono)}
+.drop{border:1px dashed var(--line);border-radius:8px;padding:14px 10px;text-align:center;color:var(--muted);display:grid;gap:8px;justify-items:center}
+.note{font-size:12px;color:var(--muted);background:var(--raised);border-radius:6px;padding:8px 10px;margin:8px 8px 0}
+/* monitor */
+.screen{flex:1;min-height:0;display:grid;place-items:center;background:var(--black);position:relative;overflow:hidden}
+#cv{display:block;touch-action:none}
+.transport{display:flex;align-items:center;gap:6px;padding:6px 8px;border-top:1px solid var(--line);flex-wrap:wrap}
+.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:15px;color:var(--accent);min-width:96px}
+.tc small{color:var(--muted);font-size:12px}
+/* inspector */
+.sec{border-bottom:1px solid var(--line);padding:10px 12px;display:grid;gap:8px}
+.sec>h3{margin:0;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:space-between}
+.sec>h3 button{font-size:11px;font-weight:400;color:var(--muted);background:none;border:0;cursor:pointer;padding:0}
+.ctl{display:grid;grid-template-columns:66px minmax(0,1fr) 48px;align-items:center;gap:8px}
+.ctl label{color:var(--muted);font-size:12px;user-select:none}
+.ctl output{font-family:var(--f-mono);font-size:11px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.ctl.wide{grid-template-columns:66px minmax(0,1fr)}
+input[type=range]{accent-color:var(--accent);width:100%;margin:0}
+select,input[type=text],textarea{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:5px 7px;width:100%;min-width:0}
+input[type=color]{width:100%;height:28px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:2px}
+textarea{resize:vertical;min-height:54px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:4px 9px;border-radius:999px;background:var(--raised);border:1px solid var(--line);cursor:pointer;color:var(--fg)}
+.chip:hover{border-color:var(--accent)}
+.kv{display:grid;grid-template-columns:66px 1fr;gap:4px 8px;font-size:12px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-family:var(--f-mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-size:12px;color:var(--muted)}
+kbd{font-family:var(--f-mono);font-size:11px;color:var(--fg);background:var(--raised);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;justify-self:start}
+/* timeline */
+.timeline{display:flex;flex-direction:column}
+.tl-tools{display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center}
+.tl-tools .zoom{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.tl-tools .zoom input{width:110px}
+.tl-scroll{flex:1;overflow:auto;position:relative;min-height:0;overscroll-behavior:contain}
+.tl-inner{position:relative;min-width:100%}
+.row{display:flex;height:52px;border-bottom:1px solid var(--line)}
+.row.ruler{height:26px;position:sticky;top:0;z-index:6;background:var(--panel)}
+.head{position:sticky;left:0;z-index:7;width:150px;flex:none;background:var(--raised);border-right:1px solid var(--line);display:flex;align-items:center;gap:2px;padding:0 4px 0 8px}
+.row.ruler .head{z-index:8;background:var(--panel);font-size:11px;color:var(--muted)}
+.head .tname{flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.head .btn{padding:3px;color:var(--muted)}
+.head .btn[aria-pressed="true"]{color:var(--danger);border-color:transparent}
+.tdot{width:8px;height:8px;border-radius:2px;flex:none;margin-right:4px}
+.k-video{--k:var(--c-video)} .k-image,.k-gen{--k:var(--c-image)} .k-text{--k:var(--c-text)} .k-audio{--k:var(--c-audio)}
+.tdot{background:var(--k)}
+.lane{position:relative;flex:1}
+.lane.over{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.row.muted .lane,.row.hidden .lane{opacity:.45}
+.ruler-lane{position:relative;flex:1;cursor:pointer}
+#ruler{position:absolute;top:0;height:26px;display:block}
+.clip{position:absolute;top:5px;bottom:5px;border-radius:5px;background-color:var(--k);color:var(--clip-fg);overflow:hidden;cursor:grab;touch-action:none;border:1px solid color-mix(in srgb,var(--k) 60%,#ffffff);background-repeat:repeat-x;background-size:auto 100%}
+.clip.has-thumb{background-blend-mode:multiply}
+.clip.sel{outline:2px solid var(--accent);outline-offset:0;z-index:2}
+.clip.bad{outline:2px dashed var(--danger)}
+.clip .nm{position:absolute;left:8px;right:8px;top:3px;font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.6);pointer-events:none}
+.clip .wave{position:absolute;left:0;bottom:2px;width:100%;height:22px;pointer-events:none}
+.clip .tr{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(to top right,rgba(255,255,255,.32) 50%,transparent 50.5%);pointer-events:none;border-right:1px solid rgba(255,255,255,.4)}
+.clip .h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:1}
+.clip .h.l{left:0} .clip .h.r{right:0}
+.clip .h:hover,.clip.sel .h{background:rgba(255,255,255,.18)}
+.playhead{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--accent);z-index:6;pointer-events:none;margin-left:-1px}
+.playhead::before{content:"";position:absolute;top:0;left:-7px;border:6px solid transparent;border-top:9px solid var(--accent)}
+/* modal + toast */
+.modal{position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 78%,transparent);display:grid;place-items:center;z-index:50;padding:16px;backdrop-filter:blur(3px)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;width:min(560px,100%);display:grid;gap:12px;max-height:100%;overflow:auto}
+.card h3{margin:0;font-size:16px}
+.card p{margin:0;color:var(--muted)}
+.card video{width:100%;max-height:50vh;background:var(--black);border-radius:6px}
+.progress{height:8px;background:var(--raised);border-radius:99px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--raised);border:1px solid var(--line);padding:8px 14px;border-radius:8px;z-index:60;max-width:calc(100% - 32px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+@media (max-width:860px){
+  body{overflow:auto}
+  .app{height:auto;grid-template-rows:none}
+  .main{grid-template-columns:minmax(0,1fr)}
+  .monitor{order:-1}
+  .screen{height:56vw;flex:none}
+  .bin,.inspector{max-height:340px}
+  .timeline{height:340px}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+
+</head>
+<body>
+<div class="app" id="app">
+  <header class="bar">
+    <div class="brand"><b></b>自在剪 Studio</div>
+    <span class="tag">完全免費・本機處理・檔案不上傳</span>
+    <div class="spacer"></div>
+    <button class="btn icon ghost" id="bUndo" title="復原 (Ctrl+Z)" aria-label="復原"></button>
+    <button class="btn icon ghost" id="bRedo" title="重做 (Ctrl+Shift+Z)" aria-label="重做"></button>
+    <label class="btn" for="fileIn" id="bImport"></label>
+    <input type="file" id="fileIn" multiple accept="video/*,audio/*,image/*" hidden>
+    <button class="btn primary" id="bExport"></button>
+  </header>
+
+  <div class="main">
+    <section class="panel bin">
+      <h2>素材庫</h2>
+      <div class="scroll" id="bin"></div>
+    </section>
+
+    <section class="panel monitor">
+      <div class="screen" id="screen"><canvas id="cv" width="1280" height="720"></canvas></div>
+      <div class="transport">
+        <div class="tc" id="tc">00:00:00</div>
+        <button class="btn icon ghost" id="bStart" title="回到開頭 (Home)" aria-label="回到開頭"></button>
+        <button class="btn icon ghost" id="bPrev" title="上一格 (←)" aria-label="上一格"></button>
+        <button class="btn icon" id="bPlay" title="播放／暫停 (空白鍵)" aria-label="播放"></button>
+        <button class="btn icon ghost" id="bNext" title="下一格 (→)" aria-label="下一格"></button>
+        <div class="spacer"></div>
+        <button class="btn" id="bSplit" title="在播放頭分割 (S)"></button>
+        <button class="btn" id="bDel" title="刪除片段 (Delete，Shift+Delete 波紋刪除)"></button>
+      </div>
+    </section>
+
+    <section class="panel inspector">
+      <h2 id="inspTitle">專案設定</h2>
+      <div class="scroll" id="insp"></div>
+    </section>
+  </div>
+
+  <section class="panel timeline">
+    <div class="tl-tools">
+      <button class="btn" data-addtrack="video"></button>
+      <button class="btn" data-addtrack="text"></button>
+      <button class="btn" data-addtrack="audio"></button>
+      <div class="spacer"></div>
+      <button class="btn" id="bSnap" aria-pressed="true" title="吸附到片段邊緣與播放頭"></button>
+      <div class="zoom"><label for="zoom">縮放</label><input type="range" id="zoom" min="0" max="100" value="45"></div>
+    </div>
+    <div class="tl-scroll" id="tlScroll">
+      <div class="tl-inner" id="tlInner">
+        <div class="row ruler"><div class="head">軌道</div><div class="ruler-lane" id="rulerLane"><canvas id="ruler"></canvas></div></div>
+        <div id="lanes"></div>
+        <div class="playhead" id="ph"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const $=s=>document.querySelector(s);
+const el=(tag,cls)=>{const e=document.createElement(tag);if(cls)e.className=cls;return e};
+const uid=()=>Math.random().toString(36).slice(2,10);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+const FPS=30, MIN=2/FPS, HEADW=150;
+
+const ICONS={
+  play:'<path d="M7 5v14l11-7z" fill="currentColor" stroke="none"/>',
+  pause:'<path d="M8 5v14M16 5v14" stroke-width="3"/>',
+  split:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>',
+  trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  redo:'<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
+  eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  vol:'<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>',
+  magnet:'<path d="M6 3v8a6 6 0 0 0 12 0V3h-4v8a2 2 0 0 1-4 0V3z"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  prev:'<path d="M6 5v14M18 6l-9 6 9 6z"/>',
+  next:'<path d="M18 5v14M6 6l9 6-9 6z"/>',
+  start:'<path d="M5 5v14M19 5 9 12l10 7z"/>',
+  export:'<path d="M12 3v12M7 8l5-5 5 5M5 21h14"/>',
+  upload:'<path d="M12 15V3m-5 5 5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>'
+};
+const ico=n=>`<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+
+/* ---------- state ---------- */
+const state={ratio:'16:9',quality:720,tracks:[],clips:[]};
+const media=new Map();   // id -> media item (runtime, holds blob URLs)
+const rt=new Map();      // clipId -> {el, src, gain}
+let sel=null, playhead=0, playing=false, pps=60, snapOn=true, dirty=true, exporting=null;
+let actx=null, master=null, recDest=null;
+let W=1280,H=720;
+
+const TR_NAMES={none:'無',dissolve:'交叉溶解',black:'黑場過渡',slide:'推移',wipe:'擦除',zoom:'縮放'};
+const ANIM_NAMES={none:'無',fade:'淡入淡出',rise:'上升浮現',type:'打字機'};
+const defProps=()=>({x:0,y:0,scale:1,rot:0,opacity:1,fit:'contain',fill:'#1f4152',
+  bright:100,contrast:100,sat:100,hue:0,temp:0,sepia:0,blur:0,vignette:0,
+  trIn:'none',trDur:.8,fadeOut:0,volume:1,afIn:0,afOut:0,speed:1,
+  text:'標題文字',font:'Noto Sans TC',size:72,weight:700,color:'#ffffff',align:'center',box:false,boxColor:'#000000',textAnim:'fade'});
+const COLOR_KEYS=['bright','contrast','sat','hue','temp','sepia','blur','vignette'];
+const PRESETS={
+  '原始':{},
+  '暖陽':{temp:40,sat:115,contrast:105},
+  '冷調':{temp:-45,sat:92,bright:102},
+  '黑白':{sat:0,contrast:122},
+  '復古':{sepia:45,contrast:92,sat:80,vignette:45},
+  '電影感':{contrast:116,sat:84,temp:12,vignette:38,bright:95},
+  '鮮豔':{sat:150,contrast:110}
+};
+
+const byId=id=>state.clips.find(c=>c.id===id);
+const trackById=id=>state.tracks.find(t=>t.id===id);
+const clipEnd=c=>c.start+c.dur;
+const projectEnd=()=>state.clips.reduce((m,c)=>Math.max(m,clipEnd(c)),0);
+const laneType=k=>k==='text'?'text':k==='audio'?'audio':'video';
+const isAV=m=>m&&(m.kind==='video'||m.kind==='audio');
+const fmt=(t,frames=true)=>{t=Math.max(0,t);const h=Math.floor(t/3600),m=Math.floor(t/60)%60,s=Math.floor(t)%60,f=Math.floor((t%1)*FPS+1e-6);
+  const p=n=>String(n).padStart(2,'0');return (h?p(h)+':':'')+p(m)+':'+p(s)+(frames?':'+p(f):'')};
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg){let t=$('.toast');if(!t){t=el('div','toast');t.setAttribute('role','status');document.body.appendChild(t)}
+  t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
+
+/* ---------- undo ---------- */
+const undoS=[],redoS=[];let lastSnap='';
+const snapState=()=>JSON.stringify({tracks:state.tracks,clips:state.clips});
+function commit(){const s=snapState();if(s===lastSnap)return;undoS.push(lastSnap);if(undoS.length>150)undoS.shift();redoS.length=0;lastSnap=s;updUndo()}
+function restore(s){const o=JSON.parse(s);state.tracks=o.tracks;state.clips=o.clips;
+  for(const [id,r] of rt) if(!byId(id)&&r.el) r.el.pause();
+  if(sel&&!byId(sel))sel=null;renderAll();updUndo()}
+function undo(){if(!undoS.length)return;redoS.push(lastSnap);lastSnap=undoS.pop();restore(lastSnap)}
+function redo(){if(!redoS.length)return;undoS.push(lastSnap);lastSnap=redoS.pop();restore(lastSnap)}
+function updUndo(){$('#bUndo').disabled=!undoS.length;$('#bRedo').disabled=!redoS.length}
+
+/* ---------- canvas + layers ---------- */
+const cv=$('#cv'),ctx=cv.getContext('2d');
+const mkLayer=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return {c,g:c.getContext('2d')}};
+let LA=mkLayer(),LB=mkLayer();
+function applyRes(){const q=state.quality;const r={'16:9':[q*16/9,q],'9:16':[q,q*16/9],'1:1':[q,q],'4:5':[q,q*5/4]}[state.ratio];
+  W=Math.round(r[0]/2)*2;H=Math.round(r[1]/2)*2;cv.width=W;cv.height=H;LA=mkLayer();LB=mkLayer();fitScreen();dirty=true}
+function fitScreen(){const r=$('#screen').getBoundingClientRect();const k=Math.min((r.width-16)/W,(r.height-16)/H);
+  if(k>0){cv.style.width=Math.floor(W*k)+'px';cv.style.height=Math.floor(H*k)+'px'}}
+new ResizeObserver(()=>{fitScreen();drawRuler()}).observe($('#screen'));
+
+function filterStr(P){const k=Math.min(W,H)/720;
+  if(P.bright===100&&P.contrast===100&&P.sat===100&&!P.hue&&!P.sepia&&!P.blur)return 'none';
+  return `brightness(${P.bright}%) contrast(${P.contrast}%) saturate(${P.sat}%) hue-rotate(${P.hue}deg) sepia(${P.sepia}%)`+(P.blur?` blur(${P.blur*k}px)`:'')}
+
+function drawGen(g,m,c,lt){const x=-W/2,y=-H/2;
+  if(m.gen==='bars'){const top=['#c0c0c0','#c0c000','#00c0c0','#00c000','#c000c0','#c00000','#0000c0'],bot=['#0000c0','#131313','#c000c0','#131313','#00c0c0','#131313','#c0c0c0'];const bw=W/7;
+    top.forEach((col,i)=>{g.fillStyle=col;g.fillRect(x+i*bw,y,bw+1,H*.75)});bot.forEach((col,i)=>{g.fillStyle=col;g.fillRect(x+i*bw,y+H*.75,bw+1,H*.25)})}
+  else if(m.gen==='gradient'){const h=200+lt*14;const gr=g.createLinearGradient(x,y,x+W,y+H);gr.addColorStop(0,`hsl(${h},55%,16%)`);gr.addColorStop(1,`hsl(${h+70},60%,42%)`);
+    g.fillStyle=gr;g.fillRect(x,y,W,H);const rx=Math.cos(lt*.7)*W*.28,ry=Math.sin(lt*.5)*H*.22;const rg=g.createRadialGradient(rx,ry,0,rx,ry,W*.55);
+    rg.addColorStop(0,'rgba(255,240,220,.22)');rg.addColorStop(1,'rgba(255,240,220,0)');g.fillStyle=rg;g.fillRect(x,y,W,H)}
+  else{g.fillStyle=c.p.fill;g.fillRect(x,y,W,H)}}
+
+function drawText(g,c,lt){const P=c.p,k=Math.min(W,H)/720,fs=P.size*k;
+  const inT=Math.min(1,lt/.5),outT=Math.min(1,(c.dur-lt)/.5);let a=g.globalAlpha,dy=0,str=P.text;
+  if(P.textAnim==='fade')a*=Math.min(inT,outT);
+  else if(P.textAnim==='rise'){a*=Math.min(inT,outT);dy=(1-ease(inT))*fs*.6}
+  else if(P.textAnim==='type'){const ch=[...str];const n=Math.floor(ch.length*Math.min(1,lt/Math.max(.6,ch.length*.06)));str=ch.slice(0,n).join('')}
+  a=Math.max(0,a);g.font=`${P.weight} ${fs}px "${P.font}","Noto Sans TC",sans-serif`;g.textBaseline='middle';g.textAlign=P.align;
+  const lines=str.split('\n'),full=P.text.split('\n'),lh=fs*1.28,top=-(full.length-1)*lh/2+dy;
+  if(P.box){const mw=Math.max(...full.map(l=>g.measureText(l).width)),pad=fs*.45;const bx=P.align==='center'?-mw/2:P.align==='left'?0:-mw;
+    g.globalAlpha=a*.82;g.fillStyle=P.boxColor;g.beginPath();const rx=bx-pad,ry=top-lh/2-pad*.4,rw=mw+pad*2,rh=full.length*lh+pad*.8;
+    if(g.roundRect)g.roundRect(rx,ry,rw,rh,fs*.18);else g.rect(rx,ry,rw,rh);g.fill()}
+  g.globalAlpha=a;g.fillStyle=P.color;if(!P.box){g.shadowColor='rgba(0,0,0,.5)';g.shadowBlur=fs*.18;g.shadowOffsetY=fs*.04}
+  lines.forEach((l,i)=>g.fillText(l,0,top+i*lh));g.shadowBlur=0;g.shadowOffsetY=0}
+
+function renderLayer(L,c,t){const g=L.g,P=c.p,lt=t-c.start,m=media.get(c.mediaId);
+  g.setTransform(1,0,0,1,0,0);g.globalCompositeOperation='source-over';g.filter='none';g.globalAlpha=1;g.clearRect(0,0,W,H);
+  let a=P.opacity;if(P.fadeOut>0){const r=(clipEnd(c)-t)/P.fadeOut;if(r<1)a*=clamp(r,0,1)}
+  g.globalAlpha=a;g.translate(W/2+P.x*W,H/2+P.y*H);g.rotate(P.rot*Math.PI/180);g.scale(P.scale,P.scale);
+  if(c.kind==='text'){drawText(g,c,lt);g.setTransform(1,0,0,1,0,0);return}
+  g.filter=filterStr(P);
+  if(m.kind==='gen')drawGen(g,m,c,lt);
+  else{const src=m.kind==='video'?getRT(c).el:m.img;const sw=m.kind==='video'?src.videoWidth:src.naturalWidth,sh=m.kind==='video'?src.videoHeight:src.naturalHeight;
+    if(sw&&(m.kind!=='video'||src.readyState>=2)){const k=(P.fit==='cover'?Math.max:Math.min)(W/sw,H/sh);g.drawImage(src,-sw*k/2,-sh*k/2,sw*k,sh*k)}}
+  g.setTransform(1,0,0,1,0,0);g.filter='none';
+  if(P.temp){g.globalCompositeOperation='source-atop';g.globalAlpha=Math.abs(P.temp)/100*.3;g.fillStyle=P.temp>0?'#ff8a1e':'#1e7bff';g.fillRect(0,0,W,H)}
+  if(P.vignette){g.globalCompositeOperation='source-atop';g.globalAlpha=P.vignette/100;const r=Math.hypot(W,H)/2;const vg=g.createRadialGradient(W/2,H/2,r*.35,W/2,H/2,r);
+    vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.9)');g.fillStyle=vg;g.fillRect(0,0,W,H)}
+  g.globalCompositeOperation='source-over';g.globalAlpha=1}
+
+function comp(L,alpha,o={}){if(alpha<=0)return;ctx.save();ctx.globalAlpha=clamp(alpha,0,1);
+  if(o.wipe!=null){ctx.beginPath();ctx.rect(0,0,W*o.wipe,H);ctx.clip()}
+  if(o.scale){ctx.translate(W/2,H/2);ctx.scale(o.scale,o.scale);ctx.translate(-W/2,-H/2)}
+  ctx.drawImage(L.c,o.dx||0,o.dy||0);ctx.restore()}
+
+function prevAdjacent(c){return state.clips.find(o=>o!==c&&o.trackId===c.trackId&&Math.abs(clipEnd(o)-c.start)<.04)}
+function trackState(tr,t){const b=state.clips.find(c=>c.trackId===tr.id&&t>=c.start&&t<clipEnd(c));if(!b)return null;
+  let a=null,p=1;if(b.p.trIn!=='none'&&tr.type!=='audio'){const d=Math.min(b.p.trDur,b.dur);if(t-b.start<d){p=(t-b.start)/d;a=prevAdjacent(b)}}
+  return {a,b,p}}
+
+function draw(t){ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+  const vis=state.tracks.filter(tr=>tr.type!=='audio'&&!tr.hidden).reverse();
+  for(const tr of vis){const s=trackState(tr,t);if(!s)continue;const tt=s.b.p.trIn,inTr=tt!=='none'&&s.p<1,p=ease(s.p);
+    if(inTr&&s.a){renderLayer(LA,s.a,t);renderLayer(LB,s.b,t);
+      switch(tt){case 'dissolve':comp(LA,1);comp(LB,p);break;
+        case 'black':if(p<.5)comp(LA,1-p*2);else comp(LB,(p-.5)*2);break;
+        case 'slide':comp(LA,1,{dx:-p*W});comp(LB,1,{dx:(1-p)*W});break;
+        case 'wipe':comp(LA,1);comp(LB,1,{wipe:p});break;
+        case 'zoom':comp(LA,1-p,{scale:1+p*.25});comp(LB,p,{scale:.8+.2*p});break}}
+    else{renderLayer(LB,s.b,t);
+      if(inTr){switch(tt){case 'slide':comp(LB,1,{dx:(1-p)*W});break;case 'wipe':comp(LB,1,{wipe:p});break;case 'zoom':comp(LB,p,{scale:.8+.2*p});break;default:comp(LB,p)}}
+      else comp(LB,1)}}
+  // selection guide while paused
+  if(!playing&&!exporting&&sel){const c=byId(sel);if(c&&c.kind!=='audio'&&t>=c.start&&t<clipEnd(c)){ctx.save();ctx.strokeStyle='rgba(240,168,58,.9)';ctx.lineWidth=Math.max(2,W/640);ctx.setLineDash([10,8]);
+    const cx=W/2+c.p.x*W,cy=H/2+c.p.y*H;ctx.beginPath();ctx.moveTo(cx-14,cy);ctx.lineTo(cx+14,cy);ctx.moveTo(cx,cy-14);ctx.lineTo(cx,cy+14);ctx.stroke();ctx.restore()}}}
+
+/* ---------- media elements + audio graph ---------- */
+function getRT(c){let r=rt.get(c.id);if(!r){r={};rt.set(c.id,r)}const m=media.get(c.mediaId);
+  if(isAV(m)&&!r.el){const e=document.createElement(m.kind);e.src=m.url;e.preload='auto';e.playsInline=true;
+    e.addEventListener('seeked',()=>{if(!playing)dirty=true});e.addEventListener('loadeddata',()=>{dirty=true});r.el=e;attachAudio(r)}
+  return r}
+function attachAudio(r){if(!actx||r.src||!r.el)return;try{r.src=actx.createMediaElementSource(r.el);r.gain=actx.createGain();r.src.connect(r.gain).connect(master)}catch(e){}}
+function ensureAudio(){if(actx){if(actx.state==='suspended')actx.resume();return}
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;actx=new AC();master=actx.createGain();master.connect(actx.destination);
+  if(actx.createMediaStreamDestination){recDest=actx.createMediaStreamDestination();master.connect(recDest)}
+  for(const r of rt.values())attachAudio(r)}
+function clipGain(c,t){const P=c.p,lt=t-c.start;let g=P.volume;if(P.afIn>0)g*=clamp(lt/P.afIn,0,1);if(P.afOut>0)g*=clamp((c.dur-lt)/P.afOut,0,1);return g}
+function srcTime(c,t){const m=media.get(c.mediaId);let s=c.in+(t-c.start)*c.p.speed;if(m&&m.duration)s=Math.min(s,m.duration-.04);return Math.max(0,s)}
+function wanted(t){const w=new Map();
+  for(const tr of state.tracks){if(tr.type==='text')continue;const s=trackState(tr,t);if(!s)continue;const on=tr.muted?0:1;
+    if(isAV(media.get(s.b.mediaId)))w.set(s.b.id,on*clipGain(s.b,t)*(s.a&&s.b.p.trIn!=='none'?s.p:1));
+    if(s.a&&isAV(media.get(s.a.mediaId)))w.set(s.a.id,on*clipGain(s.a,t)*(1-s.p))}
+  return w}
+function syncMedia(t){const w=wanted(t);
+  for(const c of state.clips){const m=media.get(c.mediaId);if(!isAV(m))continue;const r=getRT(c),e=r.el;
+    if(w.has(c.id)){const st=srcTime(c,t),g=w.get(c.id);if(r.gain)r.gain.gain.value=g;else e.volume=clamp(g,0,1);
+      if(playing){e.playbackRate=c.p.speed;if(Math.abs(e.currentTime-st)>.3)e.currentTime=st;if(e.paused&&st<m.duration-.05)e.play().catch(()=>{})}
+      else{if(!e.paused)e.pause();if(Math.abs(e.currentTime-st)>.02&&!e.seeking)e.currentTime=st}}
+    else{if(!e.paused)e.pause();if(c.start>t&&c.start-t<1.5&&!e.seeking&&Math.abs(e.currentTime-c.in)>.05)e.currentTime=c.in}}
+  for(const [id,r] of rt)if(!byId(id)&&r.el&&!r.el.paused)r.el.pause()}
+
+/* ---------- transport ---------- */
+let wall0=0,t0=0;
+function play(){if(!state.clips.length)return;ensureAudio();if(playhead>=projectEnd()-.01)playhead=0;playing=true;t0=playhead;wall0=performance.now();syncMedia(playhead);updPlayBtn()}
+function pause(){playing=false;syncMedia(playhead);updPlayBtn();dirty=true}
+function toggle(){if(exporting)return;playing?pause():play()}
+function seek(t){playhead=Math.max(0,t);if(playing){t0=playhead;wall0=performance.now()}syncMedia(playhead);dirty=true;updPH()}
+function updPlayBtn(){const b=$('#bPlay');b.innerHTML=ico(playing?'pause':'play');b.setAttribute('aria-label',playing?'暫停':'播放')}
+function loop(now){if(playing){playhead=t0+(now-wall0)/1000;const end=projectEnd();
+    if(playhead>=end){playhead=end;if(exporting){draw(playhead);finishExport()}pause()}else syncMedia(playhead);
+    draw(playhead);updPH(true);if(exporting)exporting.bar.style.width=(playhead/end*100)+'%'}
+  else if(dirty){dirty=false;draw(playhead);updPH()}
+  requestAnimationFrame(loop)}
+
+/* ---------- timeline ---------- */
+const tlScroll=$('#tlScroll'),tlInner=$('#tlInner'),lanesEl=$('#lanes'),ph=$('#ph'),ruler=$('#ruler');
+function updPH(follow){const x=HEADW+playhead*pps;ph.style.left=x+'px';$('#tc').innerHTML=fmt(playhead)+` <small>/ ${fmt(projectEnd(),false)}</small>`;
+  if(follow){const sl=tlScroll.scrollLeft,vw=tlScroll.clientWidth;if(x>sl+vw-40||x<sl+HEADW)tlScroll.scrollLeft=x-HEADW-60}}
+function xToTime(cx){return Math.max(0,(cx-tlInner.getBoundingClientRect().left-HEADW)/pps)}
+function drawRuler(){const vw=Math.max(1,tlScroll.clientWidth-HEADW),sl=tlScroll.scrollLeft,dpr=window.devicePixelRatio||1;
+  ruler.style.left=sl+'px';ruler.style.width=vw+'px';ruler.width=Math.round(vw*dpr);ruler.height=Math.round(26*dpr);
+  const g=ruler.getContext('2d');g.scale(dpr,dpr);const cs=getComputedStyle(document.documentElement);
+  g.fillStyle=cs.getPropertyValue('--panel');g.fillRect(0,0,vw,26);
+  const step=[.5,1,2,5,10,15,30,60,120,300,600].find(s=>s*pps>=80)||600,minor=step/5;
+  const i0=Math.floor(sl/pps/minor),i1=Math.ceil((sl+vw)/pps/minor);
+  g.fillStyle=cs.getPropertyValue('--muted');g.strokeStyle=cs.getPropertyValue('--muted');g.font='10px "IBM Plex Mono",monospace';g.textBaseline='top';
+  for(let i=i0;i<=i1;i++){const t=i*minor,x=Math.round(t*pps-sl)+.5,maj=i%5===0;g.globalAlpha=maj?.9:.4;g.beginPath();g.moveTo(x,maj?12:19);g.lineTo(x,26);g.stroke();
+    if(maj){g.globalAlpha=.9;g.fillText(step<1?t.toFixed(1)+'s':fmt(t,false),x+3,2)}}}
+tlScroll.addEventListener('scroll',drawRuler);
+
+function waveCanvas(c,m){const w=Math.min(3000,Math.max(2,Math.round(c.dur*pps))),h=44;const v=document.createElement('canvas');v.className='wave';v.width=w;v.height=h;
+  const g=v.getContext('2d');g.fillStyle='rgba(255,255,255,.6)';
+  for(let x=0;x<w;x+=2){const t=c.in+(x/w)*c.dur*c.p.speed;const a=m.peaks[Math.floor(t*50)]||0;const bh=Math.max(1,Math.min(1,a*c.p.volume)*h);g.fillRect(x,(h-bh)/2,1.4,bh)}
+  return v}
+function clipEl(c){const m=media.get(c.mediaId);const d=el('div',`clip k-${c.kind}`+(sel===c.id?' sel':''));d.dataset.id=c.id;
+  d.style.left=c.start*pps+'px';d.style.width=Math.max(3,c.dur*pps)+'px';
+  if(m&&m.thumb){d.style.backgroundImage=`url(${m.thumb})`;d.classList.add('has-thumb')}
+  if(m&&m.peaks)d.appendChild(waveCanvas(c,m));
+  if(c.p.trIn!=='none'&&c.kind!=='audio'){const t=el('div','tr');t.style.width=Math.min(c.p.trDur,c.dur)*pps+'px';d.appendChild(t)}
+  const nm=el('span','nm');nm.textContent=c.kind==='text'?c.p.text.split('\n')[0]:(m?m.name:'');if(c.p.speed!==1)nm.textContent+=`  ${c.p.speed}×`;d.appendChild(nm);
+  d.append(el('div','h l'),el('div','h r'));d.title=nm.textContent;return d}
+function renderTimeline(){const end=projectEnd(),vw=tlScroll.clientWidth;const cw=Math.max(vw-HEADW,(end+30)*pps);tlInner.style.width=(HEADW+cw)+'px';
+  lanesEl.textContent='';
+  for(const tr of state.tracks){const row=el('div','row'+(tr.muted?' muted':'')+(tr.hidden?' hidden':''));const head=el('div','head');
+    const dot=el('span',`tdot k-${tr.type}`),name=el('span','tname');name.textContent=tr.name;head.append(dot,name);
+    if(tr.type!=='audio'){const b=el('button','btn ghost');b.innerHTML=ico('eye');b.title='隱藏軌道';b.setAttribute('aria-label','隱藏軌道');b.setAttribute('aria-pressed',!!tr.hidden);b.onclick=()=>{tr.hidden=!tr.hidden;commit();renderTimeline();dirty=true};head.append(b)}
+    if(tr.type!=='text'){const b=el('button','btn ghost');b.innerHTML=ico('vol');b.title='靜音軌道';b.setAttribute('aria-label','靜音軌道');b.setAttribute('aria-pressed',!!tr.muted);b.onclick=()=>{tr.muted=!tr.muted;commit();renderTimeline();syncMedia(playhead)};head.append(b)}
+    const del=el('button','btn ghost');del.innerHTML=ico('x');del.title='刪除軌道';del.setAttribute('aria-label','刪除軌道');del.onclick=()=>{
+      if(state.clips.some(c=>c.trackId===tr.id)){toast('軌道上還有片段，先刪除片段再移除軌道');return}
+      state.tracks=state.tracks.filter(t=>t!==tr);commit();renderTimeline()};head.append(del);
+    const lane=el('div','lane');lane.dataset.track=tr.id;
+    for(const c of state.clips)if(c.trackId===tr.id)lane.appendChild(clipEl(c));
+    row.append(head,lane);lanesEl.appendChild(row)}
+  drawRuler();updPH()}
+
+function snapT(t,ex){if(!snapOn)return t;const th=8/pps;let best=t,bd=th;const pts=[0,playhead];
+  for(const o of state.clips){if(o===ex)continue;pts.push(o.start,clipEnd(o))}
+  for(const p of pts){const d=Math.abs(p-t);if(d<bd){bd=d;best=p}}return best}
+const overlaps=c=>state.clips.some(o=>o!==c&&o.trackId===c.trackId&&o.start<clipEnd(c)-1e-3&&clipEnd(o)>c.start+1e-3);
+
+let drag=null,scrub=false;
+lanesEl.addEventListener('pointerdown',e=>{if(exporting||e.button>0)return;const ce=e.target.closest('.clip');
+  if(!ce){if(e.target.closest('.lane')){select(null);seek(xToTime(e.clientX));scrub=true}return}
+  e.preventDefault();const c=byId(ce.dataset.id);if(sel!==c.id)select(c.id);
+  const mode=e.target.classList.contains('l')?'l':e.target.classList.contains('r')?'r':'move';
+  drag={mode,id:c.id,x0:e.clientX,s0:c.start,in0:c.in,d0:c.dur,tr0:c.trackId,moved:false}});
+$('#rulerLane').addEventListener('pointerdown',e=>{if(exporting)return;seek(xToTime(e.clientX));scrub=true});
+document.addEventListener('pointermove',e=>{
+  if(scrub){seek(xToTime(e.clientX));return}
+  if(mdrag){const c=byId(mdrag.id);const r=cv.getBoundingClientRect();c.p.x=+(mdrag.x0+(e.clientX-mdrag.cx)/r.width).toFixed(3);c.p.y=+(mdrag.y0+(e.clientY-mdrag.cy)/r.height).toFixed(3);dirty=true;return}
+  if(!drag)return;if(!drag.moved&&Math.abs(e.clientX-drag.x0)<3&&drag.mode!=='move')return;
+  const c=byId(drag.id),m=media.get(c.mediaId),dx=(e.clientX-drag.x0)/pps,sp=c.p.speed;drag.moved=true;
+  if(drag.mode==='move'){let ns=Math.max(0,drag.s0+dx);const s1=snapT(ns,c);if(s1!==ns)ns=s1;else ns=snapT(ns+c.dur,c)-c.dur;c.start=Math.max(0,ns);
+    const lane=document.elementFromPoint(e.clientX,e.clientY)?.closest('.lane');if(lane){const tr=trackById(lane.dataset.track);if(tr&&tr.type===laneType(c.kind))c.trackId=tr.id}}
+  else if(drag.mode==='l'){const prevEnd=state.clips.filter(o=>o!==c&&o.trackId===c.trackId&&clipEnd(o)<=drag.s0+1e-3).reduce((a,o)=>Math.max(a,clipEnd(o)),0);
+    let ns=clamp(snapT(drag.s0+dx,c),prevEnd,drag.s0+drag.d0-MIN);if(isAV(m))ns=Math.max(ns,drag.s0-drag.in0/sp);
+    const d=ns-drag.s0;c.start=ns;c.dur=drag.d0-d;if(isAV(m))c.in=Math.max(0,drag.in0+d*sp)}
+  else{const nextStart=state.clips.filter(o=>o!==c&&o.trackId===c.trackId&&o.start>=drag.s0+drag.d0-1e-3).reduce((a,o)=>Math.min(a,o.start),Infinity);
+    let ne=clamp(snapT(drag.s0+drag.d0+dx,c),drag.s0+MIN,nextStart);if(isAV(m))ne=Math.min(ne,drag.s0+(m.duration-drag.in0)/sp);c.dur=ne-drag.s0}
+  renderTimeline();const ce=lanesEl.querySelector(`[data-id="${c.id}"]`);if(ce&&overlaps(c))ce.classList.add('bad');dirty=true;syncMedia(playhead)});
+document.addEventListener('pointerup',()=>{scrub=false;
+  if(mdrag){mdrag=null;commit();renderInspector();return}
+  if(!drag)return;const c=byId(drag.id);
+  if(drag.moved){if(overlaps(c)){c.start=drag.s0;c.trackId=drag.tr0;c.dur=drag.d0;c.in=drag.in0;toast('那個位置已經有片段了，已放回原處')}commit();renderTimeline();renderInspector();syncMedia(playhead);dirty=true}
+  drag=null});
+
+// drag on monitor moves the selected layer
+let mdrag=null;
+cv.addEventListener('pointerdown',e=>{if(exporting)return;const c=byId(sel);if(!c||c.kind==='audio'||playhead<c.start||playhead>=clipEnd(c))return;
+  e.preventDefault();mdrag={id:c.id,cx:e.clientX,cy:e.clientY,x0:c.p.x,y0:c.p.y}});
+
+// drop from bin / files onto lanes
+lanesEl.addEventListener('dragover',e=>{const lane=e.target.closest('.lane');if(!lane)return;e.preventDefault();lanesEl.querySelectorAll('.lane.over').forEach(l=>l!==lane&&l.classList.remove('over'));lane.classList.add('over')});
+lanesEl.addEventListener('dragleave',e=>{const lane=e.target.closest('.lane');if(lane&&!lane.contains(e.relatedTarget))lane.classList.remove('over')});
+lanesEl.addEventListener('drop',e=>{const lane=e.target.closest('.lane');if(!lane)return;e.preventDefault();e.stopPropagation();lane.classList.remove('over');
+  const t=snapT(xToTime(e.clientX)),tid=lane.dataset.track,dt=e.dataTransfer;
+  if(dt.files&&dt.files.length){importFiles(dt.files,{trackId:tid,start:t});return}
+  const mid=dt.getData('text/x-media'),pre=dt.getData('text/x-preset');if(mid)addClip(mid,tid,t);else if(pre)addText(pre,tid,t)});
+window.addEventListener('dragover',e=>{if([...e.dataTransfer.types].includes('Files'))e.preventDefault()});
+window.addEventListener('drop',e=>{if(e.dataTransfer.files.length){e.preventDefault();importFiles(e.dataTransfer.files)}});
+
+/* ---------- editing ops ---------- */
+function freeStart(tid,s,dur){const hit=state.clips.some(o=>o.trackId===tid&&o.start<s+dur-1e-3&&clipEnd(o)>s+1e-3);
+  return hit?state.clips.filter(o=>o.trackId===tid).reduce((a,o)=>Math.max(a,clipEnd(o)),0):s}
+function addTrack(type){const n=state.tracks.filter(t=>t.type===type).length+1;const tr={id:uid(),type,name:{video:'視訊',text:'文字',audio:'音訊'}[type]+' '+n};
+  if(type==='audio')state.tracks.push(tr);else if(type==='text')state.tracks.unshift(tr);
+  else{const i=state.tracks.findIndex(t=>t.type==='video');state.tracks.splice(i<0?state.tracks.findIndex(t=>t.type==='audio'):i,0,tr)}
+  return tr}
+function pickTrack(kind,tid){let tr=tid?trackById(tid):null;const ty=laneType(kind);if(!tr||tr.type!==ty)tr=[...state.tracks].reverse().find(t=>t.type===ty&&ty!=='text')||state.tracks.find(t=>t.type===ty)||addTrack(ty);return tr}
+function addClip(mid,tid,start){const m=media.get(mid);if(!m)return;const tr=pickTrack(m.kind,tid);const dur=m.duration||5;
+  const c={id:uid(),trackId:tr.id,mediaId:mid,kind:m.kind,start:0,in:0,dur,p:defProps()};c.start=freeStart(tr.id,start??playhead,dur);
+  if(m.kind==='gen'&&m.gen==='solid')c.p.fill='#1f4152';state.clips.push(c);commit();select(c.id);dirty=true}
+const TEXT_PRESETS={
+  title:{label:'大標題',p:{text:'大標題',size:104,weight:900,textAnim:'rise'}},
+  lower:{label:'下方字幕條',p:{text:'人名・職稱',size:40,weight:700,box:true,boxColor:'#111418',y:.33,textAnim:'fade'}},
+  sub:{label:'對白字幕',p:{text:'這裡輸入對白字幕',size:42,weight:500,y:.4,textAnim:'none'}},
+  type:{label:'打字機文字',p:{text:'一個字一個字出現',size:60,weight:700,font:'IBM Plex Mono',textAnim:'type'}}
+};
+function addText(key,tid,start){const pr=TEXT_PRESETS[key];const tr=pickTrack('text',tid);const dur=4;
+  const c={id:uid(),trackId:tr.id,mediaId:null,kind:'text',start:0,in:0,dur,p:Object.assign(defProps(),pr.p)};c.start=freeStart(tr.id,start??playhead,dur);
+  state.clips.push(c);commit();select(c.id);dirty=true}
+function splitAt(){const t=playhead;let targets=[];const s=byId(sel);
+  if(s&&t>s.start+MIN&&t<clipEnd(s)-MIN)targets=[s];else targets=state.clips.filter(c=>t>c.start+MIN&&t<clipEnd(c)-MIN);
+  if(!targets.length){toast('把播放頭移到片段中間再分割');return}let last;
+  for(const c of targets){const n=JSON.parse(JSON.stringify(c));n.id=uid();const off=t-c.start;n.start=t;n.dur=c.dur-off;n.in=c.in+off*c.p.speed;
+    n.p.trIn='none';n.p.afIn=0;c.p.fadeOut=0;c.p.afOut=0;c.dur=off;state.clips.push(n);last=n}
+  commit();select(last.id);dirty=true}
+function deleteSel(ripple){const c=byId(sel);if(!c)return;state.clips=state.clips.filter(o=>o!==c);
+  if(ripple)for(const o of state.clips)if(o.trackId===c.trackId&&o.start>=clipEnd(c)-1e-3)o.start-=c.dur;
+  const r=rt.get(c.id);if(r&&r.el)r.el.pause();sel=null;commit();renderAll()}
+function duplicateSel(){const c=byId(sel);if(!c)return;const n=JSON.parse(JSON.stringify(c));n.id=uid();n.start=freeStart(c.trackId,clipEnd(c),c.dur);state.clips.push(n);commit();select(n.id)}
+function select(id){sel=id;renderTimeline();renderInspector();dirty=true}
+
+/* ---------- bin ---------- */
+function thumbFrom(src,w,h){const c=document.createElement('canvas');c.width=160;c.height=90;const g=c.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,160,90);
+  const k=Math.min(160/w,90/h);g.drawImage(src,(160-w*k)/2,(90-h*k)/2,w*k,h*k);return c.toDataURL('image/jpeg',.7)}
+function genThumb(m){const sw=W,sh=H;W=320;H=180;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');g.translate(W/2,H/2);
+  drawGen(g,m,{p:{fill:'#1f4152'}},0);W=sw;H=sh;return c.toDataURL('image/jpeg',.8)}
+function binItem(thumb,name,meta,onAdd,dragKey,dragVal){const it=el('div','bin-item');it.draggable=true;
+  const th=el('div','thumb');if(thumb)th.style.backgroundImage=`url(${thumb})`;else th.textContent=dragKey==='text/x-preset'?'Aa':'♪';
+  const info=el('div');info.style.minWidth='0';const nm=el('div','nm');nm.textContent=name;const mt=el('div','meta');mt.textContent=meta;info.append(nm,mt);
+  const add=el('button','btn icon ghost');add.innerHTML=ico('plus');add.title='加到播放頭位置';add.setAttribute('aria-label','加入時間軸：'+name);add.onclick=onAdd;
+  it.append(th,info,add);it.addEventListener('dblclick',onAdd);it.addEventListener('dragstart',e=>{e.dataTransfer.setData(dragKey,dragVal);e.dataTransfer.effectAllowed='copy'});return it}
+function renderBin(){const b=$('#bin');b.textContent='';
+  if(state.sample){const n=el('div','note');n.innerHTML='目前開啟的是<b>示範專案</b>。拖放你的影片、音樂或圖片進來就能開始剪。 ';const clr=el('button','chip');clr.textContent='清空時間軸';
+    clr.onclick=()=>{state.clips=[];state.sample=false;sel=null;playhead=0;commit();renderAll()};n.appendChild(clr);b.appendChild(n)}
+  const s1=el('div','bin-sec');s1.innerHTML='<h3>我的素材</h3>';const mine=[...media.values()].filter(m=>m.kind!=='gen');
+  if(!mine.length){const d=el('label','drop');d.htmlFor='fileIn';d.innerHTML=ico('upload')+'<span>把影片、音樂、圖片拖到這裡<br>或點一下選擇檔案</span>';d.style.cursor='pointer';s1.appendChild(d)}
+  for(const m of mine)s1.appendChild(binItem(m.thumb,m.name,m.loading?'讀取中…':(m.kind==='image'?'圖片':(m.kind==='audio'?'音訊 ':'影片 ')+fmt(m.duration||0,false)),()=>addClip(m.id),'text/x-media',m.id));
+  const s2=el('div','bin-sec');s2.innerHTML='<h3>文字</h3>';for(const [k,v] of Object.entries(TEXT_PRESETS))s2.appendChild(binItem(null,v.label,'文字・4 秒',()=>addText(k),'text/x-preset',k));
+  const s3=el('div','bin-sec');s3.innerHTML='<h3>產生器</h3>';for(const m of media.values())if(m.kind==='gen')s3.appendChild(binItem(m.thumb,m.name,'畫面・5 秒',()=>addClip(m.id),'text/x-media',m.id));
+  b.append(s1,s2,s3)}
+const once=(e,ev)=>new Promise((res,rej)=>{const ok=()=>{cl();res()},bad=()=>{cl();rej(new Error('load'))},cl=()=>{e.removeEventListener(ev,ok);e.removeEventListener('error',bad)};e.addEventListener(ev,ok);e.addEventListener('error',bad)});
+const loadImg=url=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+function peaksFrom(data,sr){const rate=50,per=Math.max(1,Math.floor(sr/rate)),n=Math.ceil(data.length/per),p=new Float32Array(n);let mx=0;
+  for(let i=0;i<n;i++){let m=0;const e=Math.min(data.length,(i+1)*per);for(let j=i*per;j<e;j+=4){const v=Math.abs(data[j]);if(v>m)m=v}p[i]=m;if(m>mx)mx=m}
+  if(mx>0)for(let i=0;i<n;i++)p[i]/=mx;return p}
+async function computePeaks(file){const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!OAC)return null;
+  const ab=await new OAC(1,1,44100).decodeAudioData(await file.arrayBuffer());return peaksFrom(ab.getChannelData(0),ab.sampleRate)}
+async function importFiles(files,at){
+  for(const f of files){const kind=f.type.startsWith('video')?'video':f.type.startsWith('audio')?'audio':f.type.startsWith('image')?'image':null;
+    if(!kind){toast(`不支援這個檔案類型：${f.name}`);continue}
+    const m={id:uid(),name:f.name,kind,url:URL.createObjectURL(f),loading:true};media.set(m.id,m);renderBin();
+    try{if(kind==='image'){m.img=await loadImg(m.url);m.thumb=thumbFrom(m.img,m.img.naturalWidth,m.img.naturalHeight)}
+      else{const e=document.createElement(kind);e.preload='auto';e.muted=true;e.src=m.url;await once(e,'loadedmetadata');
+        if(!isFinite(e.duration)){e.currentTime=1e7;await once(e,'seeked')}m.duration=e.duration;
+        if(kind==='video'){m.w=e.videoWidth;m.h=e.videoHeight;e.currentTime=Math.min(1,m.duration/3);await once(e,'seeked');m.thumb=thumbFrom(e,m.w,m.h)}
+        if(f.size<400e6)m.peaks=await computePeaks(f).catch(()=>null)}
+      m.loading=false;if(at){addClip(m.id,at.trackId,at.start);at.start+=m.duration||5}
+    }catch(err){media.delete(m.id);toast(`無法讀取「${f.name}」，這個瀏覽器可能不支援它的編碼格式`)}
+    renderBin()}
+  renderTimeline()}
+$('#fileIn').addEventListener('change',e=>{importFiles(e.target.files);e.target.value=''});
+
+/* ---------- inspector ---------- */
+const pct=v=>Math.round(v*100)+'%';
+const SL={x:['水平位置',-1,1,.005,pct],y:['垂直位置',-1,1,.005,pct],scale:['縮放',.1,4,.01,pct],rot:['旋轉',-180,180,1,v=>v+'°'],opacity:['不透明度',0,1,.01,pct],
+  bright:['亮度',0,200,1,v=>v+'%'],contrast:['對比',0,200,1,v=>v+'%'],sat:['飽和度',0,300,1,v=>v+'%'],hue:['色相',-180,180,1,v=>v+'°'],temp:['色溫',-100,100,1,v=>(v>0?'+':'')+v],
+  sepia:['懷舊',0,100,1,v=>v+'%'],blur:['模糊',0,20,.5,v=>v+'px'],vignette:['暗角',0,100,1,v=>v+'%'],
+  trDur:['長度',.1,3,.05,v=>v.toFixed(2)+'s'],fadeOut:['結尾淡出',0,3,.05,v=>v.toFixed(2)+'s'],
+  volume:['音量',0,2,.01,pct],afIn:['淡入',0,5,.1,v=>v.toFixed(1)+'s'],afOut:['淡出',0,5,.1,v=>v.toFixed(1)+'s'],speed:['速度',.25,4,.05,v=>v.toFixed(2)+'×'],size:['字級',12,240,1,v=>v+'px']};
+function slider(c,k){const [lab,min,max,step,f]=SL[k];const w=el('div','ctl');const id='p-'+k;
+  w.innerHTML=`<label for="${id}" title="雙擊重設">${lab}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}"><output for="${id}"></output>`;
+  const inp=w.querySelector('input'),out=w.querySelector('output');inp.value=c.p[k];out.textContent=f(c.p[k]);
+  inp.addEventListener('input',()=>{c.p[k]=+inp.value;out.textContent=f(c.p[k]);
+    if(k==='speed'){const m=media.get(c.mediaId);if(isAV(m))c.dur=Math.max(MIN,Math.min(c.dur,(m.duration-c.in)/c.p.speed))}
+    dirty=true;if(!playing)syncMedia(playhead)});
+  inp.addEventListener('change',()=>{commit();if(['trDur','speed','volume'].includes(k))renderTimeline()});
+  w.querySelector('label').addEventListener('dblclick',()=>{c.p[k]=defProps()[k];inp.value=c.p[k];out.textContent=f(c.p[k]);commit();renderTimeline();dirty=true});
+  return w}
+function selectCtl(c,k,label,opts){const w=el('div','ctl wide');const id='p-'+k;w.innerHTML=`<label for="${id}">${label}</label>`;const s=el('select');s.id=id;
+  for(const [v,t] of Object.entries(opts)){const o=el('option');o.value=v;o.textContent=t;s.appendChild(o)}s.value=String(c.p[k]);
+  s.onchange=()=>{const v=s.value;c.p[k]=isNaN(+v)||k==='font'?v:+v;if(k==='font')document.fonts.load(`700 40px "${v}"`).then(()=>dirty=true);commit();renderTimeline();dirty=true};w.appendChild(s);return w}
+function colorCtl(c,k,label){const w=el('div','ctl wide');const id='p-'+k;w.innerHTML=`<label for="${id}">${label}</label><input type="color" id="${id}">`;const i=w.querySelector('input');i.value=c.p[k];
+  i.oninput=()=>{c.p[k]=i.value;dirty=true};i.onchange=()=>commit();return w}
+function section(title,reset){const s=el('div','sec');const h=el('h3');h.textContent=title;if(reset){const b=el('button');b.textContent='重設';b.onclick=reset;h.appendChild(b)}s.appendChild(h);return s}
+function renderInspector(){const box=$('#insp');box.textContent='';const c=byId(sel);
+  if(!c){$('#inspTitle').textContent='專案設定';renderProject(box);return}
+  const m=media.get(c.mediaId);$('#inspTitle').textContent={video:'影片片段',image:'圖片片段',gen:'產生器片段',audio:'音訊片段',text:'文字片段'}[c.kind];
+  const info=section('片段資訊');const dl=el('dl','kv');
+  const rows=[['來源',c.kind==='text'?'文字':m.name],['開始',fmt(c.start)],['長度',fmt(c.dur)]];if(isAV(m))rows.push(['素材入點',fmt(c.in)]);
+  for(const [a,b] of rows){const dt=el('dt'),dd=el('dd');dt.textContent=a;dd.textContent=b;dl.append(dt,dd)}info.appendChild(dl);box.appendChild(info);
+  if(isAV(m)){info.appendChild(slider(c,'speed'))}
+  if(c.kind==='text'){const s=section('文字');const ta=el('textarea');ta.id='p-text';ta.value=c.p.text;ta.setAttribute('aria-label','文字內容');
+    ta.oninput=()=>{c.p.text=ta.value;dirty=true};ta.onchange=()=>{commit();renderTimeline()};s.appendChild(ta);
+    s.append(selectCtl(c,'font','字型',{'Noto Sans TC':'思源黑體','Noto Serif TC':'思源宋體','IBM Plex Mono':'等寬','Unbounded':'Unbounded (英文)'}),
+      slider(c,'size'),selectCtl(c,'weight','字重',{400:'一般',500:'中等',700:'粗體',900:'特粗'}),colorCtl(c,'color','顏色'),
+      selectCtl(c,'align','對齊',{center:'置中',left:'靠左',right:'靠右'}),selectCtl(c,'textAnim','動畫',ANIM_NAMES),selectCtl(c,'box','底框',{false:'無',true:'有'}));
+    if(c.p.box)s.appendChild(colorCtl(c,'boxColor','底框顏色'));box.appendChild(s)}
+  if(c.kind==='gen'&&m.gen==='solid'){const s=section('顏色');s.appendChild(colorCtl(c,'fill','填色'));box.appendChild(s)}
+  if(c.kind!=='audio'){
+    const tf=section('變形',()=>{Object.assign(c.p,{x:0,y:0,scale:1,rot:0,opacity:1});commit();renderInspector();dirty=true});
+    tf.append(...['x','y','scale','rot','opacity'].map(k=>slider(c,k)));if(c.kind==='video'||c.kind==='image')tf.appendChild(selectCtl(c,'fit','填滿方式',{contain:'完整顯示',cover:'裁切填滿'}));
+    const hint=el('div');hint.style.cssText='font-size:11px;color:var(--muted)';hint.textContent='也可以直接在預覽畫面上拖曳來移動位置。';tf.appendChild(hint);box.appendChild(tf);
+    if(c.kind!=='text'){const cs=section('調色',()=>{const d=defProps();COLOR_KEYS.forEach(k=>c.p[k]=d[k]);commit();renderInspector();dirty=true});
+      const chips=el('div','chips');for(const [n,v] of Object.entries(PRESETS)){const b=el('button','chip');b.textContent=n;b.onclick=()=>{const d=defProps();COLOR_KEYS.forEach(k=>c.p[k]=v[k]??d[k]);commit();renderInspector();dirty=true};chips.appendChild(b)}
+      cs.appendChild(chips);cs.append(...COLOR_KEYS.map(k=>slider(c,k)));box.appendChild(cs)}
+    const ts=section('轉場');ts.append(selectCtl(c,'trIn','進場轉場',TR_NAMES),slider(c,'trDur'),slider(c,'fadeOut'));
+    const th=el('div');th.style.cssText='font-size:11px;color:var(--muted)';th.textContent='同一軌上緊接前一個片段時，轉場會在兩個片段之間發生；否則會疊在下層軌道上。';ts.appendChild(th);box.appendChild(ts)}
+  if(isAV(m)){const as=section('音訊');as.append(slider(c,'volume'),slider(c,'afIn'),slider(c,'afOut'));box.appendChild(as)}}
+function renderProject(box){const s=section('畫面');const mk=(label,id,opts,val,fn)=>{const w=el('div','ctl wide');w.innerHTML=`<label for="${id}">${label}</label>`;const sl=el('select');sl.id=id;
+    for(const [v,t] of opts){const o=el('option');o.value=v;o.textContent=t;sl.appendChild(o)}sl.value=val;sl.onchange=()=>fn(sl.value);w.appendChild(sl);return w};
+  s.append(mk('比例','pr-ratio',[['16:9','16:9 橫式（YouTube）'],['9:16','9:16 直式（Reels / Shorts）'],['1:1','1:1 方形'],['4:5','4:5 貼文']],state.ratio,v=>{state.ratio=v;applyRes();renderInspector()}),
+    mk('解析度','pr-q',[['720','720p'],['1080','1080p']],String(state.quality),v=>{state.quality=+v;applyRes();renderInspector()}));
+  const dl=el('dl','kv');for(const [a,b] of [['輸出尺寸',`${W} × ${H}`],['影格率',`${FPS} fps`],['總長度',fmt(projectEnd())],['輸出格式',pickMime().label]]){const dt=el('dt'),dd=el('dd');dt.textContent=a;dd.textContent=b;dl.append(dt,dd)}
+  s.appendChild(dl);box.appendChild(s);
+  const k=section('快捷鍵');const g=el('div','keys');
+  for(const [a,b] of [['空白鍵','播放／暫停'],['S','在播放頭分割'],['Delete','刪除片段'],['Shift+Delete','波紋刪除（後面片段自動補位）'],['Ctrl+D','複製片段'],['← →','前後一格（Shift 一秒）'],['Home / End','跳到開頭／結尾'],['Ctrl+Z','復原'],['Ctrl+Shift+Z','重做'],['+ / −','時間軸縮放']]){
+    const kb=el('kbd');kb.textContent=a;const sp=el('span');sp.textContent=b;g.append(kb,sp)}k.appendChild(g);box.appendChild(k);
+  const p=section('隱私');const t=el('p');t.style.cssText='margin:0;font-size:12px;color:var(--muted)';t.textContent='所有剪輯、調色與輸出都在你的瀏覽器裡完成。影片不會上傳到任何伺服器，也不需要帳號或點數。';p.appendChild(t);box.appendChild(p)}
+
+/* ---------- export ---------- */
+function pickMime(){const R=window.MediaRecorder;if(!R)return {mime:'',label:'此瀏覽器不支援輸出'};
+  const list=[['video/mp4;codecs=avc1.42E01F,mp4a.40.2','MP4 (H.264)'],['video/mp4','MP4'],['video/webm;codecs=vp9,opus','WebM (VP9)'],['video/webm;codecs=vp8,opus','WebM (VP8)'],['video/webm','WebM']];
+  const f=list.find(([m])=>R.isTypeSupported(m));return f?{mime:f[0],label:f[1]}:{mime:'',label:'WebM'}}
+async function startExport(){if(!state.clips.length){toast('時間軸是空的，先加入素材');return}if(!window.MediaRecorder||!cv.captureStream){toast('這個瀏覽器不支援輸出，請改用最新版 Chrome、Edge 或 Firefox');return}
+  pause();ensureAudio();const {mime,label}=pickMime();
+  const tracks=[...cv.captureStream(FPS).getVideoTracks()];if(recDest)tracks.push(...recDest.stream.getAudioTracks());
+  const rec=new MediaRecorder(new MediaStream(tracks),mime?{mimeType:mime,videoBitsPerSecond:state.quality>=1080?12e6:6e6}:{});const chunks=[];
+  rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+  const md=el('div','modal');md.innerHTML=`<div class="card" role="dialog" aria-modal="true" aria-labelledby="exT"><h3 id="exT">正在輸出影片…</h3><p>輸出會即時播放一次整部影片。請讓這個分頁保持在前景，不要切走。</p><div class="progress"><i></i></div><div class="bar"><span class="tag">${W}×${H}・${label}</span><div class="spacer"></div><button class="btn" id="exCancel">取消</button></div></div>`;
+  document.body.appendChild(md);
+  exporting={rec,md,bar:md.querySelector('.progress i'),cancelled:false,mime:mime||'video/webm',label};
+  md.querySelector('#exCancel').onclick=()=>{exporting.cancelled=true;finishExport();pause()};
+  rec.onstop=()=>showResult(new Blob(chunks,{type:(mime||'video/webm').split(';')[0]}),md);
+  const savedSel=sel;sel=null;playhead=0;syncMedia(0);dirty=true;await new Promise(r=>setTimeout(r,500));rec.start(250);play();sel=savedSel}
+function finishExport(){if(!exporting)return;const x=exporting;exporting=null;x.done=true;if(x.rec.state!=='inactive')x.rec.stop();if(x.cancelled){x.md.remove();x.rec.onstop=null;toast('已取消輸出')}else x.md._x=x}
+function showResult(blob,md){const x=md._x;const url=URL.createObjectURL(blob);const ext=blob.type.includes('mp4')?'mp4':'webm';
+  const d=new Date(),name=`自在剪-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.${ext}`;
+  md.querySelector('.card').innerHTML=`<h3>輸出完成</h3><video controls playsinline src="${url}"></video><p>${(blob.size/1048576).toFixed(1)} MB・${ext.toUpperCase()}・${W}×${H}</p><div class="bar"><a class="btn primary" href="${url}" download="${name}">${ico('export')}下載影片</a><div class="spacer"></div><button class="btn" id="exClose">關閉</button></div>${ext==='webm'?'<p style="font-size:12px">這個瀏覽器只能輸出 WebM。YouTube、Instagram 都能直接上傳 WebM。</p>':''}`;
+  md.querySelector('#exClose').onclick=()=>md.remove();md.dataset.done='1';
+  md.querySelector('a[download]').addEventListener('click',e=>{if(!dlCap)return;e.preventDefault();
+    dlCap.save({filename:name,data:blob}).catch(err=>{if(err&&err.code!=='declined')toast('無法下載：'+(err.message||err.code))})});window.__lastExport={size:blob.size,type:blob.type}}
+
+// inside claude.ai the page saves files through the downloads capability; elsewhere the plain link works
+let dlCap=null;try{window.claude&&window.claude.use&&window.claude.use('downloads').then(n=>{dlCap=n}).catch(()=>{})}catch(e){}
+
+/* ---------- keyboard ---------- */
+document.addEventListener('keydown',e=>{if(exporting)return;const tg=e.target;if(tg.closest&&tg.closest('input,textarea,select'))return;const mod=e.ctrlKey||e.metaKey;
+  if(e.code==='Space'){e.preventDefault();toggle()}
+  else if(mod&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo()}
+  else if(mod&&e.key.toLowerCase()==='y'){e.preventDefault();redo()}
+  else if(mod&&e.key.toLowerCase()==='d'){e.preventDefault();duplicateSel()}
+  else if(!mod&&e.key.toLowerCase()==='s'){splitAt()}
+  else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSel(e.shiftKey)}
+  else if(e.key==='ArrowLeft'){e.preventDefault();seek(playhead-(e.shiftKey?1:1/FPS))}
+  else if(e.key==='ArrowRight'){e.preventDefault();seek(playhead+(e.shiftKey?1:1/FPS))}
+  else if(e.key==='Home'){seek(0)}else if(e.key==='End'){seek(projectEnd())}
+  else if(e.key==='+'||e.key==='='){zoomBy(8)}else if(e.key==='-'){zoomBy(-8)}});
+
+/* ---------- toolbar wiring ---------- */
+$('#bUndo').innerHTML=ico('undo');$('#bRedo').innerHTML=ico('redo');$('#bImport').innerHTML=ico('upload')+'匯入素材';$('#bExport').innerHTML=ico('export')+'輸出影片';
+$('#bStart').innerHTML=ico('start');$('#bPrev').innerHTML=ico('prev');$('#bNext').innerHTML=ico('next');$('#bSplit').innerHTML=ico('split')+'分割';$('#bDel').innerHTML=ico('trash')+'刪除';
+$('#bSnap').innerHTML=ico('magnet')+'吸附';
+document.querySelectorAll('[data-addtrack]').forEach(b=>{const t=b.dataset.addtrack;b.innerHTML=ico('plus')+{video:'視訊軌',text:'文字軌',audio:'音訊軌'}[t];b.onclick=()=>{addTrack(t);commit();renderTimeline()}});
+$('#bUndo').onclick=undo;$('#bRedo').onclick=redo;$('#bExport').onclick=startExport;$('#bPlay').onclick=toggle;$('#bStart').onclick=()=>seek(0);
+$('#bPrev').onclick=()=>seek(playhead-1/FPS);$('#bNext').onclick=()=>seek(playhead+1/FPS);$('#bSplit').onclick=splitAt;$('#bDel').onclick=()=>deleteSel(false);
+$('#bSnap').onclick=e=>{snapOn=!snapOn;e.currentTarget.setAttribute('aria-pressed',snapOn)};
+const zoomEl=$('#zoom');const zoomToPps=v=>10*Math.pow(40,v/100);
+function setZoom(v){zoomEl.value=v;pps=zoomToPps(+v);renderTimeline();const x=HEADW+playhead*pps;tlScroll.scrollLeft=x-tlScroll.clientWidth/2}
+function zoomBy(d){setZoom(clamp(+zoomEl.value+d,0,100))}
+zoomEl.addEventListener('input',()=>setZoom(zoomEl.value));
+tlScroll.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();zoomBy(e.deltaY<0?4:-4)}},{passive:false});
+
+function renderAll(){renderBin();renderTimeline();renderInspector();dirty=true;updPlayBtn()}
+
+/* ---------- sample project ---------- */
+function synthWav(sec){const sr=22050,n=Math.floor(sr*sec),d=new Float32Array(n);const mtof=m=>440*Math.pow(2,(m-69)/12);
+  const chords=[[60,64,67],[57,60,64],[53,57,60],[55,59,62]],beat=.25;
+  for(let b=0;b*beat<sec;b++){const ch=chords[Math.floor(b*beat/2.5)%4];const f=mtof(ch[b%3]+(b%6<3?12:24));const s0=Math.floor(b*beat*sr),len=Math.floor(.7*sr);
+    for(let i=0;i<len&&s0+i<n;i++){const t=i/sr;d[s0+i]+=Math.sin(2*Math.PI*f*t)*Math.exp(-t*5)*.2+Math.sin(4*Math.PI*f*t)*Math.exp(-t*9)*.04}}
+  for(let i=0;i<n;i++){const t=i/sr,ch=chords[Math.floor(t/2.5)%4];let v=0;for(const m of ch)v+=Math.sin(2*Math.PI*mtof(m-12)*t);d[i]+=v*.035*Math.min(1,t)}
+  const buf=new ArrayBuffer(44+n*2),v=new DataView(buf),w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++)v.setInt16(44+i*2,clamp(d[i],-1,1)*32767,true);
+  return {url:URL.createObjectURL(new Blob([buf],{type:'audio/wav'})),peaks:peaksFrom(d,sr),duration:n/sr}}
+function init(){
+  for(const [gen,name] of [['gradient','流動漸層'],['bars','測試彩條'],['solid','純色背景']]){const m={id:'gen-'+gen,name,kind:'gen',gen};m.thumb=genThumb(m);media.set(m.id,m)}
+  const s=synthWav(10.5);const mu={id:'sample-music',name:'示範配樂.wav',kind:'audio',url:s.url,duration:s.duration,peaks:s.peaks};media.set(mu.id,mu);
+  state.tracks=[{id:'t1',type:'text',name:'文字 1'},{id:'v2',type:'video',name:'視訊 2'},{id:'v1',type:'video',name:'視訊 1'},{id:'a1',type:'audio',name:'音訊 1'}];
+  const P=o=>Object.assign(defProps(),o);
+  state.clips=[
+    {id:uid(),trackId:'v1',mediaId:'gen-gradient',kind:'gen',start:0,in:0,dur:6,p:P({vignette:30})},
+    {id:uid(),trackId:'v1',mediaId:'gen-bars',kind:'gen',start:6,in:0,dur:4.5,p:P({trIn:'dissolve',trDur:1,sat:70,contrast:90,fadeOut:1})},
+    {id:uid(),trackId:'t1',mediaId:null,kind:'text',start:.4,in:0,dur:4.4,p:P({text:'自在剪 Studio',font:'Unbounded',size:92,weight:700,textAnim:'rise',y:-.04})},
+    {id:uid(),trackId:'t1',mediaId:null,kind:'text',start:5.4,in:0,dur:4.6,p:P({text:'把你的影片拖進來，開始剪輯',size:40,box:true,boxColor:'#111418',y:.33,textAnim:'fade'})},
+    {id:uid(),trackId:'a1',mediaId:'sample-music',kind:'audio',start:0,in:0,dur:10.5,p:P({afIn:.5,afOut:1.5,volume:.8})}];
+  state.sample=true;lastSnap=snapState();applyRes();setZoom(45);renderAll();updUndo();
+  document.fonts&&document.fonts.ready.then(()=>{dirty=true});
+  ['700 40px "Unbounded"','700 40px "Noto Sans TC"','900 40px "Noto Sans TC"'].forEach(f=>document.fonts&&document.fonts.load(f).then(()=>dirty=true).catch(()=>{}));
+  requestAnimationFrame(loop)}
+window.addEventListener('resize',()=>{renderTimeline()});
+init();
+window.__editor={state,media,seek,play,pause,splitAt,undo,redo,startExport,get playhead(){return playhead},get playing(){return playing}};
+})();
+</script>
+
+</body>
+</html>
