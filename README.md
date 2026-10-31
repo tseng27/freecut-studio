@@ -2,7 +2,7 @@
 
 完全免費、在瀏覽器裡執行的影音剪輯平台。不需要伺服器、帳號、點數或任何付費 API，影片不會上傳。
 
-## 功能（原型 v0.1）
+## 功能（v0.2）
 
 - 多軌時間軸：視訊軌、文字軌、音訊軌，可自由新增；拖曳移動、拖曳邊緣修剪、吸附、縮放
 - 剪輯：分割（S）、刪除、波紋刪除（Shift+Delete）、複製（Ctrl+D）、復原／重做
@@ -12,7 +12,7 @@
 - 文字：4 種樣式範本、字型、字重、顏色、底框、進場動畫（淡入、上升、打字機）
 - 音訊：音量（最高 200%）、淡入淡出、波形顯示、軌道靜音；變速 0.25×–4×
 - 比例：16:9、9:16、1:1、4:5；720p / 1080p
-- 輸出：MP4（Chrome / Edge 新版）或 WebM，含音訊
+- 輸出：WebCodecs 快速輸出 MP4（H.264 + AAC/Opus），逐格精準、比即時播放快數倍、可切到背景分頁；不支援的瀏覽器自動改用 MediaRecorder 即時錄製
 
 ## 技術
 
@@ -20,17 +20,16 @@
 |---|---|---|
 | 畫面合成 | Canvas 2D（每軌一層離屏畫布 + filter） | 0 |
 | 聲音 | Web Audio API（每片段 GainNode） | 0 |
-| 輸出 | MediaRecorder（即時錄製） | 0 |
+| 輸出 | WebCodecs VideoEncoder/AudioEncoder + mp4-muxer；影片用 mp4box.js 解封裝後以 VideoDecoder 解碼；聲音用 OfflineAudioContext 離線混音 | 0 |
 | 部署 | GitHub Pages（單一 HTML 檔，無建置步驟） | 0 |
 
 ## 路線圖
 
-1. 以 WebCodecs + mp4-muxer 取代即時錄製，輸出速度快數倍且逐格精準
-2. 專案存檔：IndexedDB / OPFS 保存素材與時間軸
-3. 關鍵影格動畫、遮罩、綠幕去背（WebGL shader）
-4. LUT 調色（.cube）、色輪與示波器
-5. 自動字幕：Whisper（transformers.js，在本機執行）
-6. 音訊降噪、節拍偵測
+1. 專案存檔：IndexedDB / OPFS 保存素材與時間軸
+2. 關鍵影格動畫、遮罩、綠幕去背（WebGL shader）
+3. LUT 調色（.cube）、色輪與示波器
+4. 自動字幕：Whisper（transformers.js，在本機執行）
+5. 音訊降噪、節拍偵測
 
 ## 線上使用
 

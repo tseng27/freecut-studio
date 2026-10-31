@@ -31,7 +31,7 @@ button,select,input,textarea{font:inherit;color:inherit}
 .brand b{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
 .tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 9px;white-space:nowrap}
 .spacer{flex:1}
-.btn{background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;color:var(--fg)}
+.btn{text-decoration:none;background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;color:var(--fg)}
 .btn:hover{border-color:color-mix(in srgb,var(--fg) 28%,var(--line))}
 .btn:disabled{opacity:.4;cursor:default}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
@@ -193,6 +193,8 @@ kbd{font-family:var(--f-mono);font-size:11px;color:var(--fg);background:var(--ra
   </section>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
 <script>
 (()=>{
 'use strict';
@@ -276,9 +278,9 @@ function updUndo(){$('#bUndo').disabled=!undoS.length;$('#bRedo').disabled=!redo
 /* ---------- canvas + layers ---------- */
 const cv=$('#cv'),ctx=cv.getContext('2d');
 const mkLayer=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return {c,g:c.getContext('2d')}};
-let LA=mkLayer(),LB=mkLayer();
+let LA=mkLayer(),LB=mkLayer(),LS=mkLayer();
 function applyRes(){const q=state.quality;const r={'16:9':[q*16/9,q],'9:16':[q,q*16/9],'1:1':[q,q],'4:5':[q,q*5/4]}[state.ratio];
-  W=Math.round(r[0]/2)*2;H=Math.round(r[1]/2)*2;cv.width=W;cv.height=H;LA=mkLayer();LB=mkLayer();fitScreen();dirty=true}
+  W=Math.round(r[0]/2)*2;H=Math.round(r[1]/2)*2;cv.width=W;cv.height=H;LA=mkLayer();LB=mkLayer();LS=mkLayer();fitScreen();dirty=true}
 function fitScreen(){const r=$('#screen').getBoundingClientRect();const k=Math.min((r.width-16)/W,(r.height-16)/H);
   if(k>0){cv.style.width=Math.floor(W*k)+'px';cv.style.height=Math.floor(H*k)+'px'}}
 new ResizeObserver(()=>{fitScreen();drawRuler()}).observe($('#screen'));
@@ -313,10 +315,13 @@ function renderLayer(L,c,t){const g=L.g,P=c.p,lt=t-c.start,m=media.get(c.mediaId
   let a=P.opacity;if(P.fadeOut>0){const r=(clipEnd(c)-t)/P.fadeOut;if(r<1)a*=clamp(r,0,1)}
   g.globalAlpha=a;g.translate(W/2+P.x*W,H/2+P.y*H);g.rotate(P.rot*Math.PI/180);g.scale(P.scale,P.scale);
   if(c.kind==='text'){drawText(g,c,lt);g.setTransform(1,0,0,1,0,0);return}
-  g.filter=filterStr(P);
-  if(m.kind==='gen')drawGen(g,m,c,lt);
-  else{const src=m.kind==='video'?getRT(c).el:m.img;const sw=m.kind==='video'?src.videoWidth:src.naturalWidth,sh=m.kind==='video'?src.videoHeight:src.naturalHeight;
-    if(sw&&(m.kind!=='video'||src.readyState>=2)){const k=(P.fit==='cover'?Math.max:Math.min)(W/sw,H/sh);g.drawImage(src,-sw*k/2,-sh*k/2,sw*k,sh*k)}}
+  const fs=filterStr(P);
+  if(m.kind==='gen'){if(fs==='none')drawGen(g,m,c,lt);
+    else{const s=LS.g;s.setTransform(1,0,0,1,0,0);s.filter='none';s.globalAlpha=1;s.clearRect(0,0,W,H);s.setTransform(g.getTransform());drawGen(s,m,c,lt);
+      g.setTransform(1,0,0,1,0,0);g.filter=fs;g.drawImage(LS.c,0,0)}}
+  else{g.filter=fs;const fr=exportFrames.get(c.id);
+    const src=fr||(m.kind==='video'?getRT(c).el:m.img);const sw=fr?fr.displayWidth:m.kind==='video'?src.videoWidth:src.naturalWidth,sh=fr?fr.displayHeight:m.kind==='video'?src.videoHeight:src.naturalHeight;
+    if(sw&&(fr||m.kind!=='video'||src.readyState>=2)){const k=(P.fit==='cover'?Math.max:Math.min)(W/sw,H/sh);g.drawImage(src,-sw*k/2,-sh*k/2,sw*k,sh*k)}}
   g.setTransform(1,0,0,1,0,0);g.filter='none';
   if(P.temp){g.globalCompositeOperation='source-atop';g.globalAlpha=Math.abs(P.temp)/100*.3;g.fillStyle=P.temp>0?'#ff8a1e':'#1e7bff';g.fillRect(0,0,W,H)}
   if(P.vignette){g.globalCompositeOperation='source-atop';g.globalAlpha=P.vignette/100;const r=Math.hypot(W,H)/2;const vg=g.createRadialGradient(W/2,H/2,r*.35,W/2,H/2,r);
@@ -597,7 +602,7 @@ function renderProject(box){const s=section('畫面');const mk=(label,id,opts,va
     for(const [v,t] of opts){const o=el('option');o.value=v;o.textContent=t;sl.appendChild(o)}sl.value=val;sl.onchange=()=>fn(sl.value);w.appendChild(sl);return w};
   s.append(mk('比例','pr-ratio',[['16:9','16:9 橫式（YouTube）'],['9:16','9:16 直式（Reels / Shorts）'],['1:1','1:1 方形'],['4:5','4:5 貼文']],state.ratio,v=>{state.ratio=v;applyRes();renderInspector()}),
     mk('解析度','pr-q',[['720','720p'],['1080','1080p']],String(state.quality),v=>{state.quality=+v;applyRes();renderInspector()}));
-  const dl=el('dl','kv');for(const [a,b] of [['輸出尺寸',`${W} × ${H}`],['影格率',`${FPS} fps`],['總長度',fmt(projectEnd())],['輸出格式',pickMime().label]]){const dt=el('dt'),dd=el('dd');dt.textContent=a;dd.textContent=b;dl.append(dt,dd)}
+  const dl=el('dl','kv');for(const [a,b] of [['輸出尺寸',`${W} × ${H}`],['影格率',`${FPS} fps`],['總長度',fmt(projectEnd())],['輸出方式',canFast()?'MP4・WebCodecs 快速輸出':pickMime().label+'・即時錄製']]){const dt=el('dt'),dd=el('dd');dt.textContent=a;dd.textContent=b;dl.append(dt,dd)}
   s.appendChild(dl);box.appendChild(s);
   const k=section('快捷鍵');const g=el('div','keys');
   for(const [a,b] of [['空白鍵','播放／暫停'],['S','在播放頭分割'],['Delete','刪除片段'],['Shift+Delete','波紋刪除（後面片段自動補位）'],['Ctrl+D','複製片段'],['← →','前後一格（Shift 一秒）'],['Home / End','跳到開頭／結尾'],['Ctrl+Z','復原'],['Ctrl+Shift+Z','重做'],['+ / −','時間軸縮放']]){
@@ -608,7 +613,7 @@ function renderProject(box){const s=section('畫面');const mk=(label,id,opts,va
 function pickMime(){const R=window.MediaRecorder;if(!R)return {mime:'',label:'此瀏覽器不支援輸出'};
   const list=[['video/mp4;codecs=avc1.42E01F,mp4a.40.2','MP4 (H.264)'],['video/mp4','MP4'],['video/webm;codecs=vp9,opus','WebM (VP9)'],['video/webm;codecs=vp8,opus','WebM (VP8)'],['video/webm','WebM']];
   const f=list.find(([m])=>R.isTypeSupported(m));return f?{mime:f[0],label:f[1]}:{mime:'',label:'WebM'}}
-async function startExport(){if(!state.clips.length){toast('時間軸是空的，先加入素材');return}if(!window.MediaRecorder||!cv.captureStream){toast('這個瀏覽器不支援輸出，請改用最新版 Chrome、Edge 或 Firefox');return}
+async function exportRealtime(){if(!state.clips.length){toast('時間軸是空的，先加入素材');return}if(!window.MediaRecorder||!cv.captureStream){toast('這個瀏覽器不支援輸出，請改用最新版 Chrome、Edge 或 Firefox');return}
   pause();ensureAudio();const {mime,label}=pickMime();
   const tracks=[...cv.captureStream(FPS).getVideoTracks()];if(recDest)tracks.push(...recDest.stream.getAudioTracks());
   const rec=new MediaRecorder(new MediaStream(tracks),mime?{mimeType:mime,videoBitsPerSecond:state.quality>=1080?12e6:6e6}:{});const chunks=[];
@@ -620,9 +625,115 @@ async function startExport(){if(!state.clips.length){toast('時間軸是空的�
   rec.onstop=()=>showResult(new Blob(chunks,{type:(mime||'video/webm').split(';')[0]}),md);
   const savedSel=sel;sel=null;playhead=0;syncMedia(0);dirty=true;await new Promise(r=>setTimeout(r,500));rec.start(250);play();sel=savedSel}
 function finishExport(){if(!exporting)return;const x=exporting;exporting=null;x.done=true;if(x.rec.state!=='inactive')x.rec.stop();if(x.cancelled){x.md.remove();x.rec.onstop=null;toast('已取消輸出')}else x.md._x=x}
-function showResult(blob,md){const x=md._x;const url=URL.createObjectURL(blob);const ext=blob.type.includes('mp4')?'mp4':'webm';
+
+
+/* ---------- WebCodecs video decoding for export (MP4/MOV); other formats fall back to seeking the <video> ---------- */
+const exportFrames=new Map(); // clipId -> VideoFrame drawn by renderLayer during fast export
+const demuxCache=new Map();
+function demux(m){if(!demuxCache.has(m.id))demuxCache.set(m.id,(async()=>{
+  if(!window.MP4Box||!window.VideoDecoder||!window.DataStream)return null;
+  try{const ab=await (await fetch(m.url)).arrayBuffer();
+    return await new Promise((res)=>{const f=MP4Box.createFile();const samples=[];let tr=null,cfg=null;
+      f.onError=()=>res(null);
+      f.onReady=async info=>{tr=info.videoTracks[0];if(!tr)return res(null);
+        const mx=tr.matrix;if(mx&&(mx[1]!==0||mx[3]!==0||mx[0]<0))return res(null); // rotated phone video: let the <video> element handle it
+        const e=f.getTrackById(tr.id).mdia.minf.stbl.stsd.entries[0];const box=e.avcC||e.hvcC||e.vpcC||e.av1C;let description;
+        if(box){const ds=new DataStream(undefined,0,DataStream.BIG_ENDIAN);box.write(ds);description=new Uint8Array(ds.buffer,8)}
+        cfg={codec:tr.codec.startsWith('vp08')?'vp8':tr.codec,codedWidth:tr.video.width,codedHeight:tr.video.height,description};
+        try{if(!(await VideoDecoder.isConfigSupported(cfg)).supported)return res(null)}catch(_){return res(null)}
+        f.setExtractionOptions(tr.id,null,{nbSamples:Infinity});f.start();f.flush()};
+      f.onSamples=(id,u,list)=>{for(const x of list)samples.push({ts:x.cts/x.timescale,dur:x.duration/x.timescale,key:x.is_sync,data:x.data});
+        if(samples.length>=tr.nb_samples){const t0=Math.min(...samples.map(x=>x.ts));for(const x of samples)x.ts-=t0;res({cfg,samples})}};
+      ab.fileStart=0;f.appendBuffer(ab);f.flush();setTimeout(()=>res(samples.length&&cfg?{cfg,samples}:null),15000)})}
+  catch(e){return null}})());return demuxCache.get(m.id)}
+class FrameReader{
+  constructor(d){this.d=d;this.dec=null;this.frames=[];this.next=0;this.lastT=-1;this.flushed=false;this.wake=null}
+  reset(t){this.close();const S=this.d.samples;let k=0;for(let i=0;i<S.length;i++){if(S[i].key&&S[i].ts<=t+1e-4)k=i;if(S[i].ts>t+1)break}
+    this.dec=new VideoDecoder({output:f=>{this.frames.push(f);if(this.wake)this.wake()},error:()=>{this.failed=true;if(this.wake)this.wake()}});
+    this.dec.configure(this.d.cfg);this.next=k;this.flushed=false}
+  async frameAt(t){if(!this.dec||t<this.lastT-1e-6||t-this.lastT>3)this.reset(t);this.lastT=t;const S=this.d.samples,eps=1e-4;
+    for(let guard=0;guard<100000;guard++){if(this.failed)throw new Error('decode');
+      while(this.frames.length>=2&&this.frames[1].timestamp/1e6<=t+eps)this.frames.shift().close();
+      const f0=this.frames[0];
+      if(f0&&(this.frames.length>=2||this.flushed))return f0;
+      if(this.next<S.length){const n=Math.min(S.length,this.next+8);for(;this.next<n;this.next++){const x=S[this.next];
+          this.dec.decode(new EncodedVideoChunk({type:x.key?'key':'delta',timestamp:Math.round(x.ts*1e6),duration:Math.round(x.dur*1e6),data:x.data}))}
+        await new Promise(r=>{this.wake=r;setTimeout(r,20)});this.wake=null}
+      else if(!this.flushed){await this.dec.flush();this.flushed=true}
+      else return f0||null}
+    return null}
+  close(){for(const f of this.frames)f.close();this.frames=[];if(this.dec&&this.dec.state!=='closed')this.dec.close();this.dec=null}}
+const readers=new Map(); // clipId -> FrameReader
+
+/* ---------- fast export: WebCodecs frame-by-frame + offline audio mix ---------- */
+const canFast=()=>!!(window.VideoEncoder&&window.VideoFrame&&window.Mp4Muxer);
+const yieldUI=()=>new Promise(r=>{const ch=new MessageChannel();ch.port1.onmessage=()=>r();ch.port2.postMessage(0)});
+async function pickVideoCfg(){const bitrate=state.quality>=1080?12e6:6e6;
+  for(const codec of ['avc1.640028','avc1.4d0028','avc1.420028','avc1.42001f']){const cfg={codec,width:W,height:H,bitrate,framerate:FPS,avc:{format:'avc'}};
+    try{if((await VideoEncoder.isConfigSupported(cfg)).supported)return cfg}catch(e){}}
+  return null}
+async function pickAudioCfg(){if(!window.AudioEncoder||!window.AudioData)return null;
+  for(const [codec,mux] of [['mp4a.40.2','aac'],['opus','opus']]){const cfg={codec,sampleRate:48000,numberOfChannels:2,bitrate:192000};
+    try{if((await AudioEncoder.isConfigSupported(cfg)).supported)return {cfg,mux}}catch(e){}}
+  return null}
+const audioCache=new Map();
+function decodeMedia(m){if(!audioCache.has(m.id))audioCache.set(m.id,(async()=>{try{const ab=await (await fetch(m.url)).arrayBuffer();
+  return await new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(2,1,48000).decodeAudioData(ab)}catch(e){return null}})());return audioCache.get(m.id)}
+// mirrors wanted(): same volume, fades and transition crossfades as live playback
+async function renderAudio(end){const SR=48000;const items=[];
+  for(const tr of state.tracks){if(tr.type==='text'||tr.muted)continue;for(const c of state.clips)if(c.trackId===tr.id&&isAV(media.get(c.mediaId)))items.push(c)}
+  if(!items.length)return null;const oac=new OfflineAudioContext(2,Math.max(1,Math.ceil(end*SR)),SR);let any=false;
+  for(const c of items){const buf=await decodeMedia(media.get(c.mediaId));if(!buf)continue;any=true;
+    const nx=state.clips.find(o=>o!==c&&o.trackId===c.trackId&&o.p.trIn!=='none'&&Math.abs(o.start-clipEnd(c))<.04);const tail=nx?Math.min(nx.p.trDur,nx.dur):0;
+    const head=c.kind!=='audio'&&c.p.trIn!=='none'&&prevAdjacent(c)?Math.min(c.p.trDur,c.dur):0;
+    const t0=c.start,t1=Math.min(end,clipEnd(c)+tail),n=Math.max(2,Math.ceil((t1-t0)*100)),curve=new Float32Array(n);
+    for(let i=0;i<n;i++){const t=t0+(t1-t0)*i/(n-1);let g=Math.max(0,clipGain(c,t));if(head&&t-t0<head)g*=(t-t0)/head;if(tail&&t>clipEnd(c))g*=Math.max(0,1-(t-clipEnd(c))/tail);curve[i]=g}
+    const src=oac.createBufferSource();src.buffer=buf;src.playbackRate.value=c.p.speed;const gn=oac.createGain();gn.gain.setValueCurveAtTime(curve,t0,Math.max(.01,t1-t0));
+    src.connect(gn).connect(oac.destination);const off=Math.min(c.in,buf.duration);src.start(t0,off,Math.max(0,Math.min((t1-t0)*c.p.speed,buf.duration-off)))}
+  return any?await oac.startRendering():null}
+function encodeAudio(aenc,buf){const SR=buf.sampleRate,L=buf.getChannelData(0),R=buf.numberOfChannels>1?buf.getChannelData(1):L,step=4800;
+  for(let i=0;i<buf.length;i+=step){const n=Math.min(step,buf.length-i),d=new Float32Array(n*2);d.set(L.subarray(i,i+n),0);d.set(R.subarray(i,i+n),n);
+    const ad=new AudioData({format:'f32-planar',sampleRate:SR,numberOfFrames:n,numberOfChannels:2,timestamp:Math.round(i/SR*1e6),data:d});aenc.encode(ad);ad.close()}}
+function cleanupReaders(){for(const r of readers.values())r.close();readers.clear();exportFrames.clear()}
+function seekEl(e,t){return new Promise(res=>{if(Math.abs(e.currentTime-t)<1e-4&&e.readyState>=2&&!e.seeking)return res();
+  const done=()=>{clearTimeout(to);e.removeEventListener('seeked',done);res()},to=setTimeout(done,4000);e.addEventListener('seeked',done);e.currentTime=t})}
+async function prepareFrame(t){const jobs=[];exportFrames.clear();
+  for(const tr of state.tracks){if(tr.type!=='video'||tr.hidden)continue;const s=trackState(tr,t);if(!s)continue;
+    for(const c of [s.a,s.b]){const m=c&&media.get(c.mediaId);if(!m||m.kind!=='video')continue;const rd=readers.get(c.id);
+      if(rd)jobs.push(rd.frameAt(srcTime(c,t)).then(f=>{if(f)exportFrames.set(c.id,f);else exportFrames.delete(c.id)}));
+      else{const e=getRT(c).el;if(!e.paused)e.pause();jobs.push(seekEl(e,srcTime(c,t)))}}}
+  if(jobs.length)await Promise.all(jobs)}
+async function startExport(){if(exporting)return;if(!state.clips.length){toast('時間軸是空的，先加入素材');return}
+  if(!canFast())return exportRealtime();pause();const vcfg=await pickVideoCfg();if(!vcfg)return exportRealtime();
+  const end=projectEnd(),nF=Math.max(1,Math.ceil(end*FPS));
+  const md=el('div','modal');md.innerHTML=`<div class="card" role="dialog" aria-modal="true" aria-labelledby="exT"><h3 id="exT">正在輸出影片…</h3><p id="exStat">準備中</p><div class="progress"><i></i></div><div class="bar"><span class="tag">${W}×${H}・MP4・WebCodecs</span><div class="spacer"></div><button class="btn" id="exCancel">取消</button></div></div>`;
+  document.body.appendChild(md);const stat=md.querySelector('#exStat'),bar=md.querySelector('.progress i');
+  const job={fast:true,cancelled:false,md,bar};exporting=job;md.querySelector('#exCancel').onclick=()=>{job.cancelled=true};
+  const savedSel=sel;sel=null;let venc,aenc;
+  try{stat.textContent='正在混合音軌…';await yieldUI();const abuf=await renderAudio(end);const acfg=abuf?await pickAudioCfg():null;
+    if(abuf&&!acfg)toast('這個瀏覽器不支援音訊編碼，影片會沒有聲音');
+    const target=new Mp4Muxer.ArrayBufferTarget();
+    const muxer=new Mp4Muxer.Muxer({target,video:{codec:'avc',width:W,height:H,frameRate:FPS},audio:acfg?{codec:acfg.mux,numberOfChannels:2,sampleRate:48000}:undefined,fastStart:'in-memory',firstTimestampBehavior:'offset'});
+    let err=null;venc=new VideoEncoder({output:(ch,meta)=>muxer.addVideoChunk(ch,meta),error:e=>{err=e}});venc.configure(vcfg);
+    if(acfg){aenc=new AudioEncoder({output:(ch,meta)=>muxer.addAudioChunk(ch,meta),error:e=>{err=e}});aenc.configure(acfg.cfg);encodeAudio(aenc,abuf)}
+    await Promise.all(state.clips.filter(c=>{const m=media.get(c.mediaId);return m&&m.kind==='video'}).map(c=>{const e=getRT(c).el;e.pause();
+      return e.readyState>=1?null:Promise.race([once(e,'loadedmetadata'),new Promise(r=>setTimeout(r,4000))]).catch(()=>{})}));
+    stat.textContent='正在讀取影片…';await yieldUI();
+    for(const c of state.clips){const m=media.get(c.mediaId);if(m&&m.kind==='video'&&!trackById(c.trackId).hidden){const d=await demux(m);if(d)readers.set(c.id,new FrameReader(d))}}
+    const tStart=performance.now();
+    for(let i=0;i<nF;i++){if(job.cancelled)break;if(err)throw err;const t=i/FPS;await prepareFrame(t);draw(t);
+      const f=new VideoFrame(cv,{timestamp:Math.round(i*1e6/FPS),duration:Math.round(1e6/FPS)});venc.encode(f,{keyFrame:i%(FPS*2)===0});f.close();
+      if(venc.encodeQueueSize>6)await new Promise(r=>{const chk=()=>venc.encodeQueueSize<=2?r():setTimeout(chk,4);chk()});
+      if(i%5===0||i===nF-1){bar.style.width=((i+1)/nF*100)+'%';stat.textContent=`第 ${i+1} / ${nF} 格・可以切到別的分頁，輸出會繼續`;playhead=t;updPH();await yieldUI()}}
+    if(job.cancelled){venc.close();if(aenc)aenc.close();md.remove();toast('已取消輸出')}
+    else{stat.textContent='正在封裝 MP4…';await venc.flush();if(aenc)await aenc.flush();if(err)throw err;muxer.finalize();
+      const secs=(performance.now()-tStart)/1000;showResult(new Blob([target.buffer],{type:'video/mp4'}),md,`・花了 ${secs.toFixed(1)} 秒輸出 ${end.toFixed(1)} 秒的影片`)}
+    cleanupReaders();exporting=null;sel=savedSel;dirty=true}
+  catch(e){cleanupReaders();try{venc&&venc.state!=='closed'&&venc.close();aenc&&aenc.state!=='closed'&&aenc.close()}catch(_){}
+    md.remove();exporting=null;sel=savedSel;dirty=true;toast('快速輸出失敗（'+(e&&e.message||e)+'），改用即時錄製');return exportRealtime()}}
+function showResult(blob,md,extra=''){const x=md._x;const url=URL.createObjectURL(blob);const ext=blob.type.includes('mp4')?'mp4':'webm';
   const d=new Date(),name=`自在剪-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.${ext}`;
-  md.querySelector('.card').innerHTML=`<h3>輸出完成</h3><video controls playsinline src="${url}"></video><p>${(blob.size/1048576).toFixed(1)} MB・${ext.toUpperCase()}・${W}×${H}</p><div class="bar"><a class="btn primary" href="${url}" download="${name}">${ico('export')}下載影片</a><div class="spacer"></div><button class="btn" id="exClose">關閉</button></div>${ext==='webm'?'<p style="font-size:12px">這個瀏覽器只能輸出 WebM。YouTube、Instagram 都能直接上傳 WebM。</p>':''}`;
+  md.querySelector('.card').innerHTML=`<h3>輸出完成</h3><video controls playsinline src="${url}"></video><p>${(blob.size/1048576).toFixed(1)} MB・${ext.toUpperCase()}・${W}×${H}${extra}</p><div class="bar"><a class="btn primary" href="${url}" download="${name}">${ico('export')}下載影片</a><div class="spacer"></div><button class="btn" id="exClose">關閉</button></div>${ext==='webm'?'<p style="font-size:12px">這個瀏覽器只能輸出 WebM。YouTube、Instagram 都能直接上傳 WebM。</p>':''}`;
   md.querySelector('#exClose').onclick=()=>md.remove();md.dataset.done='1';
   md.querySelector('a[download]').addEventListener('click',e=>{if(!dlCap)return;e.preventDefault();
     dlCap.save({filename:name,data:blob}).catch(err=>{if(err&&err.code!=='declined')toast('無法下載：'+(err.message||err.code))})});window.__lastExport={size:blob.size,type:blob.type}}
